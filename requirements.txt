@@ -1,0 +1,11 @@
+# Smart Gym CP05 — dependências
+# Python 3.12 recomendado
+# Instalar: pip install -r requirements.txt
+
+opencv-python==5.0.0.93
+mediapipe==1.1.1
+ultralytics==8.4.178
+numpy==2.5.4
+pyserial==3.5
+Pillow==12.3.0
+paho-mqtt==2.1.0

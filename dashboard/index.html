@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Smart Gym — Dashboard IoT | CP05</title>
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <style>
+    /* ── Reset & Base ───────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0d0d0d;
+      --panel:     #1a1a1a;
+      --border:    #2a2a2a;
+      --accent:    #e91e8c;
+      --green:     #00e676;
+      --red:       #f44336;
+      --yellow:    #ffd740;
+      --blue:      #00e5ff;
+      --gray:      #888888;
+      --text:      #ffffff;
+      --text-muted:#aaaaaa;
+    }
+
+    body {
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ─────────────────────────────────────────────────────────── */
+    header {
+      background: var(--accent);
+      padding: 0 28px;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+
+    header h1 {
+      font-size: 1.35rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+    }
+
+    header h1 span { opacity: 0.75; font-weight: 400; font-size: 1rem; }
+
+    #mqtt-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.82rem;
+      font-weight: 600;
+    }
+
+    #mqtt-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: var(--yellow);
+      flex-shrink: 0;
+      transition: background 0.4s;
+    }
+
+    #mqtt-dot.connected   { background: var(--green); }
+    #mqtt-dot.disconnected{ background: var(--red);   }
+
+    /* ── Main layout ─────────────────────────────────────────────────────── */
+    main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      grid-template-rows: auto 1fr;
+      gap: 16px;
+      padding: 20px 24px;
+      max-width: 1280px;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    /* ── Cards ───────────────────────────────────────────────────────────── */
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px 22px;
+    }
+
+    .card-label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      color: var(--gray);
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+
+    /* ── Status card ─────────────────────────────────────────────────────── */
+    #card-status {
+      grid-column: 1;
+      grid-row: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 160px;
+      transition: background 0.5s, border-color 0.5s;
+    }
+
+    #status-circle {
+      width: 80px; height: 80px;
+      border-radius: 50%;
+      background: var(--gray);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2rem;
+      margin-bottom: 14px;
+      transition: background 0.5s, box-shadow 0.5s;
+    }
+
+    #status-circle.livre {
+      background: var(--green);
+      box-shadow: 0 0 28px rgba(0, 230, 118, 0.5);
+    }
+
+    #status-circle.ocupada {
+      background: var(--red);
+      box-shadow: 0 0 28px rgba(244, 67, 54, 0.5);
+    }
+
+    #status-text {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--gray);
+      transition: color 0.5s;
+    }
+
+    #status-text.livre   { color: var(--green); }
+    #status-text.ocupada { color: var(--red);   }
+
+    #status-sub {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    /* ── Aluno card ──────────────────────────────────────────────────────── */
+    #card-aluno {
+      grid-column: 1;
+      grid-row: 2;
+    }
+
+    .aluno-nome {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+
+    .aluno-exercicio {
+      font-size: 1rem;
+      color: var(--blue);
+      font-weight: 600;
+      margin-bottom: 12px;
+    }
+
+    .aluno-uid {
+      font-size: 0.78rem;
+      color: var(--gray);
+      font-family: "Courier New", monospace;
+    }
+
+    /* ── Reps card ───────────────────────────────────────────────────────── */
+    #card-reps {
+      grid-column: 2;
+      grid-row: 1 / 3;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .reps-row {
+      display: flex;
+      gap: 24px;
+      align-items: flex-end;
+    }
+
+    .reps-block { text-align: center; }
+
+    .reps-number {
+      font-size: 4.5rem;
+      font-weight: 800;
+      line-height: 1;
+      color: var(--green);
+      transition: color 0.3s;
+    }
+
+    .reps-number.meta-atingida { color: var(--accent); }
+
+    .reps-label {
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      color: var(--gray);
+      text-transform: uppercase;
+      margin-top: 4px;
+    }
+
+    /* Barra de progresso */
+    .progress-wrap {
+      background: #333;
+      border-radius: 4px;
+      height: 18px;
+      overflow: hidden;
+    }
+
+    .progress-bar {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 4px;
+      width: 0%;
+      transition: width 0.4s ease;
+    }
+
+    .progress-pct {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 6px;
+      text-align: right;
+    }
+
+    /* Última sessão concluída */
+    #ultimo-concluido {
+      background: rgba(233, 30, 140, 0.12);
+      border: 1px solid rgba(233, 30, 140, 0.3);
+      border-radius: 6px;
+      padding: 14px 16px;
+      display: none;
+    }
+
+    #ultimo-concluido.visivel { display: block; }
+
+    #ultimo-concluido .titulo {
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+
+    #ultimo-concluido .desc {
+      font-size: 1rem;
+      color: var(--text);
+    }
+
+    /* ── Histórico ───────────────────────────────────────────────────────── */
+    #card-historico {
+      grid-column: 1 / 3;
+      grid-row: 3;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+    }
+
+    thead th {
+      text-align: left;
+      padding: 8px 12px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      color: var(--gray);
+      text-transform: uppercase;
+      border-bottom: 1px solid var(--border);
+    }
+
+    tbody tr {
+      border-bottom: 1px solid var(--border);
+      transition: background 0.2s;
+    }
+
+    tbody tr:hover { background: rgba(255,255,255,0.03); }
+
+    tbody td {
+      padding: 10px 12px;
+      color: var(--text-muted);
+    }
+
+    tbody td:first-child { color: var(--text); font-weight: 600; }
+
+    .badge-concluido {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 700;
+    }
+
+    .badge-sim  { background: rgba(0,230,118,0.15); color: var(--green); }
+
+    /* ── Footer ──────────────────────────────────────────────────────────── */
+    footer {
+      text-align: center;
+      padding: 14px;
+      font-size: 0.78rem;
+      color: var(--gray);
+      border-top: 1px solid var(--border);
+    }
+
+    /* ── Responsivo ──────────────────────────────────────────────────────── */
+    @media (max-width: 768px) {
+      main {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto;
+      }
+      #card-reps { grid-column: 1; grid-row: auto; }
+      #card-historico { grid-column: 1; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════ HEADER ═══════════════════════════════════════════ -->
+<header>
+  <h1>⚡ SMART GYM &nbsp;<span>Dashboard IoT — CP05</span></h1>
+  <div id="mqtt-badge">
+    <div id="mqtt-dot"></div>
+    <span id="mqtt-label">Conectando ao broker...</span>
+  </div>
+</header>
+
+<!-- ═══════════════════════ MAIN ═════════════════════════════════════════════ -->
+<main>
+
+  <!-- Card: Status da Máquina -->
+  <div class="card" id="card-status">
+    <div class="card-label" style="text-align:center">Status da Estação</div>
+    <div id="status-circle">🏋️</div>
+    <div id="status-text">Aguardando</div>
+    <div id="status-sub">sem dados</div>
+  </div>
+
+  <!-- Card: Aluno Ativo -->
+  <div class="card" id="card-aluno">
+    <div class="card-label">Aluno Ativo</div>
+    <div class="aluno-nome" id="aluno-nome">—</div>
+    <div class="aluno-exercicio" id="aluno-exercicio">—</div>
+    <div class="aluno-uid" id="aluno-uid">UID: —</div>
+  </div>
+
+  <!-- Card: Repetições -->
+  <div class="card" id="card-reps">
+    <div class="card-label">Repetições em Tempo Real</div>
+
+    <div class="reps-row">
+      <div class="reps-block">
+        <div class="reps-number" id="reps-atual">0</div>
+        <div class="reps-label">Reps</div>
+      </div>
+      <div style="font-size:2rem; color:var(--gray); padding-bottom:10px">/</div>
+      <div class="reps-block">
+        <div class="reps-number" style="color:var(--gray)" id="reps-meta">—</div>
+        <div class="reps-label">Meta</div>
+      </div>
+    </div>
+
+    <div>
+      <div class="progress-wrap">
+        <div class="progress-bar" id="progress-bar"></div>
+      </div>
+      <div class="progress-pct" id="progress-pct">0%</div>
+    </div>
+
+    <!-- Badge de conclusão -->
+    <div id="ultimo-concluido">
+      <div class="titulo">✅ Série Concluída</div>
+      <div class="desc" id="concluido-desc">—</div>
+    </div>
+  </div>
+
+  <!-- Card: Histórico da Sessão -->
+  <div class="card" id="card-historico">
+    <div class="card-label">Histórico da Sessão</div>
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Aluno</th>
+          <th>Exercício</th>
+          <th>Reps</th>
+          <th>Meta</th>
+          <th>Horário</th>
+          <th>Concluído</th>
+        </tr>
+      </thead>
+      <tbody id="historico-tbody">
+        <tr id="sem-dados-row">
+          <td colspan="7" style="text-align:center; color:var(--gray); padding:20px">
+            Aguardando eventos MQTT...
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+</main>
+
+<!-- ═══════════════════════ FOOTER ═══════════════════════════════════════════ -->
+<footer>
+  Smart Gym CP05 · FIAP Physical Computing (IoT &amp; IoB) ·
+  Broker: <code>broker.hivemq.com</code> ·
+  Tópicos: <code>smartgym/#</code>
+</footer>
+
+<!-- ═══════════════════════ MQTT LOGIC ═══════════════════════════════════════ -->
+<script>
+  // ── Estado local ───────────────────────────────────────────────────────────
+  const state = {
+    status:    "livre",
+    aluno:     null,    // { nome, exercicio, uid }
+    reps:      0,
+    meta:      0,
+    historico: [],
+  };
+
+  let sessionCount = 0;
+
+  // ── MQTT ────────────────────────────────────────────────────────────────────
+  const BROKER_URL = "wss://broker.hivemq.com:8884/mqtt";
+  const TOPICOS = [
+    "smartgym/maquina/status",
+    "smartgym/sessao/aluno",
+    "smartgym/sessao/reps",
+  ];
+
+  const client = mqtt.connect(BROKER_URL, {
+    clientId:       "smartgym-dashboard-" + Math.random().toString(16).slice(2, 8),
+    clean:          true,
+    reconnectPeriod: 3000,
+  });
+
+  // ── Conexão ─────────────────────────────────────────────────────────────────
+  client.on("connect", () => {
+    console.log("[MQTT] Conectado ao broker.");
+    setMqttStatus("connected", "Broker conectado");
+    TOPICOS.forEach(t => client.subscribe(t, { qos: 1 }));
+  });
+
+  client.on("reconnect", () => {
+    setMqttStatus("connecting", "Reconectando...");
+  });
+
+  client.on("offline", () => {
+    setMqttStatus("disconnected", "Broker offline");
+  });
+
+  client.on("error", (err) => {
+    console.error("[MQTT] Erro:", err);
+    setMqttStatus("disconnected", "Erro de conexão");
+  });
+
+  // ── Mensagens recebidas ──────────────────────────────────────────────────────
+  client.on("message", (topic, message) => {
+    const raw = message.toString();
+    console.log(`[MQTT] ${topic}:`, raw);
+
+    if (topic === "smartgym/maquina/status") {
+      handleStatus(raw.trim());
+    } else if (topic === "smartgym/sessao/aluno") {
+      try { handleAluno(JSON.parse(raw)); } catch(e) { console.warn(e); }
+    } else if (topic === "smartgym/sessao/reps") {
+      try { handleReps(JSON.parse(raw)); } catch(e) { console.warn(e); }
+    }
+  });
+
+  // ── Handlers ────────────────────────────────────────────────────────────────
+  function handleStatus(status) {
+    state.status = status;
+    const circle = document.getElementById("status-circle");
+    const text   = document.getElementById("status-text");
+    const sub    = document.getElementById("status-sub");
+
+    circle.className = status;
+    text.className   = status;
+
+    if (status === "livre") {
+      circle.textContent = "✅";
+      text.textContent   = "LIVRE";
+      sub.textContent    = "Estação disponível";
+    } else {
+      circle.textContent = "🔴";
+      text.textContent   = "OCUPADA";
+      sub.textContent    = "Treino em andamento";
+    }
+  }
+
+  function handleAluno(data) {
+    state.aluno = data;
+    document.getElementById("aluno-nome").textContent      = data.nome      || "—";
+    document.getElementById("aluno-exercicio").textContent = data.exercicio  || "—";
+    document.getElementById("aluno-uid").textContent       = "UID: " + (data.uid || "—");
+
+    // Limpa badge de conclusão ao novo login
+    const badge = document.getElementById("ultimo-concluido");
+    badge.classList.remove("visivel");
+  }
+
+  function handleReps(data) {
+    const { nome, reps, meta, concluido } = data;
+    state.reps = reps;
+    state.meta = meta;
+
+    // Número de reps
+    const repsEl = document.getElementById("reps-atual");
+    repsEl.textContent = reps;
+    repsEl.className = "reps-number" + (concluido ? " meta-atingida" : "");
+
+    // Meta
+    document.getElementById("reps-meta").textContent = meta || "—";
+
+    // Barra de progresso
+    const pct = meta > 0 ? Math.min((reps / meta) * 100, 100) : 0;
+    document.getElementById("progress-bar").style.width = pct + "%";
+    document.getElementById("progress-pct").textContent = Math.round(pct) + "%";
+
+    // Badge de conclusão
+    if (concluido) {
+      const badge = document.getElementById("ultimo-concluido");
+      const desc  = document.getElementById("concluido-desc");
+      desc.textContent = `${nome} completou ${reps}/${meta} reps! 🎉`;
+      badge.classList.add("visivel");
+      adicionarHistorico(nome, data.exercicio || (state.aluno && state.aluno.exercicio) || "—", reps, meta, true);
+    }
+  }
+
+  function adicionarHistorico(nome, exercicio, reps, meta, concluido) {
+    // Remove linha "sem dados"
+    const semDados = document.getElementById("sem-dados-row");
+    if (semDados) semDados.remove();
+
+    sessionCount++;
+    const agora = new Date().toLocaleTimeString("pt-BR", { hour12: false });
+    const tbody = document.getElementById("historico-tbody");
+
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${sessionCount}</td>
+      <td>${escHtml(nome)}</td>
+      <td>${escHtml(exercicio)}</td>
+      <td>${reps}</td>
+      <td>${meta}</td>
+      <td>${agora}</td>
+      <td><span class="badge-concluido badge-sim">✓ Sim</span></td>
+    `;
+    tbody.insertBefore(tr, tbody.firstChild);
+  }
+
+  // ── Helpers ─────────────────────────────────────────────────────────────────
+  function setMqttStatus(state, label) {
+    const dot = document.getElementById("mqtt-dot");
+    dot.className = state;
+    document.getElementById("mqtt-label").textContent = label;
+  }
+
+  function escHtml(str) {
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  }
+</script>
+</body>
+</html>

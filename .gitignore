@@ -1,0 +1,52 @@
+# ─── Ambiente virtual ────────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+ENV/
+
+# ─── Python ──────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# ─── Modelos de ML (arquivos grandes — não versionar no Git) ─────────────────
+# Baixar manualmente conforme README
+pose_landmarker_full.task
+efficientdet_lite0.tflite
+yolov8n.pt
+
+# Cache do ultralytics/YOLO
+runs/
+*.cache
+ultralytics/
+
+# ─── Banco de dados SQLite ────────────────────────────────────────────────────
+# O banco é gerado pelo setup_db.py — não versionar dados locais
+db/smart_gym.db
+
+# ─── macOS ───────────────────────────────────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# ─── IDEs e editores ─────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ─── Logs e temporários ──────────────────────────────────────────────────────
+*.log
+*.tmp
+*.bak
